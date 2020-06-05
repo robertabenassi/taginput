@@ -1,0 +1,475 @@
+import React from 'react';
+import clsx from 'clsx';
+
+import Input, { InputProps } from '@material-ui/core/Input';
+import FilledInput from '@material-ui/core/FilledInput/FilledInput';
+import OutlinedInput from '@material-ui/core/OutlinedInput';
+import InputLabel from '@material-ui/core/InputLabel';
+import FormControl from '@material-ui/core/FormControl';
+import FormHelperText from '@material-ui/core/FormHelperText'; // tod do { FormHelperTextProps }
+import Chip from '@material-ui/core/Chip';
+import { WithStyles, Theme, createStyles} from '@material-ui/core/styles';
+import withStyles from '@material-ui/core/styles/withStyles'
+
+import { InputLabelProps } from '@material-ui/core/InputLabel';
+
+export type TagInputBlurBehaviour =  'clear'| 'add' | 'ignore' ;
+export type TagInputVariant = 'outlined' | 'standard' | 'filled';
+export type MarginProps = 'normal' | 'dense';
+
+export const styles = (theme: Theme) => createStyles({
+    /* Styles applied to the root element. */
+    root: {},
+    tagInput: {
+        margin: ` -${theme.spacing(1)}px ${theme.spacing(1)}px 0 0`,
+        float: 'left',
+    },
+    tagInputDense: {
+       marginTop: -theme.spacing(0.5),
+       height: theme.spacing(3),
+       fontSize: '0.8em',
+       lineHeight: theme.spacing(3),
+    },
+    tagInputFocused: {
+        backgroundColor: theme.palette.primary.light,
+    },
+    outlined: {
+        '& input': {
+          height: 16,
+          paddingTop: 4,
+          paddingBottom: 12,
+          marginTop: 4,
+          marginBottom: 4
+        },
+      },
+    standard: {},
+    filled: {},
+    label: {
+        top: 4,
+        '&$outlined&:not($labelShrink)': {
+          top: 2,
+          '$marginDense &': {
+            top: 0,
+          }
+        },
+        '&$filled&:not($labelShrink)': {
+          top: 0,
+          '$marginDense &': {
+            top: 0,
+          }
+        },
+        '&$filled&$labelShrink': {
+            top: -theme.spacing(1),
+        }
+    },
+    labelShrink: {
+        top: 0,
+    },
+    marginDense: {},
+});
+
+interface TagInputProps extends WithStyles<typeof styles> {
+    allowDuplicates: boolean,
+    alwaysShowPlaceholder: boolean,
+    blurBehaviour: TagInputBlurBehaviour,
+    className: string,
+    delayBeforeAdd: boolean,
+    defaultValue: string[] | undefined,
+    disabled: boolean,
+    error: boolean,
+    FormHelperTextProps: any,
+    fullWidth: boolean,
+    helperText: string,
+    id: string,
+    InputLabelProps: InputLabelProps,
+    InputProps: InputProps,
+    inputValue: string,
+    label: string,
+    margin: MarginProps,
+    name: string,
+    newChipKeyCodes: number[],
+    newChipKeys: string[],
+    onAdd?(chip: string): void,
+    onBeforeAdd?(): void,
+    onBlur?(event: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>): void,
+    onChange?(chips: string[]): void,
+    onDelete?(chip: string, i: number): void,
+    onFocus?(event: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>): void,
+    onKeyDown?(event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>): void,
+    onKeyPress?(event: React.KeyboardEvent<HTMLDivElement>): void,
+    onKeyUp?(event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>): void,
+    onUpdateInput?(event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>): void,
+    readOnly: boolean,
+    required: boolean,
+    placeholder: string,
+    variant: TagInputVariant,
+}
+
+const keyCodes = {
+    BACKSPACE: 8,
+    DELETE: 46,
+    LEFT_ARROW: 37,
+    RIGHT_ARROW: 39
+}
+
+const inputComponent = {
+    outlined: OutlinedInput,
+    standard: Input,
+    filled: FilledInput,
+}
+
+
+
+
+const TagInput = (props: TagInputProps) => {
+    const {
+        allowDuplicates,
+        blurBehaviour,
+        classes,
+        className,
+        defaultValue,
+        delayBeforeAdd,
+        disabled,
+        error,
+        FormHelperTextProps,
+        fullWidth,
+        helperText,
+        id,
+        InputLabelProps,
+        InputProps,
+        inputValue,
+        label,
+        margin,
+        name,
+        newChipKeyCodes,
+        newChipKeys,
+        placeholder,
+        readOnly,
+        required,
+        onBeforeAdd,
+        onAdd,
+        onBlur,
+        onChange,
+        onDelete,
+        onFocus,
+        onKeyDown,
+        onKeyPress,
+        onKeyUp,
+        onUpdateInput,
+        variant,
+    } = props;
+
+    
+    const [ chips, setChips ] = React.useState([] as any);
+    const [ focusedChip, setFocusedChip ] = React.useState(-1);
+    const [ actualInputValue, setActualInputValue ] = React.useState('');
+    const [ isFocused, setIsFocused ] = React.useState(false);
+    const [ preventChipCreation, setPreventChipCreation ] = React.useState(false);
+    const [ isKeyPressed, setIsKeyPressed ] = React.useState(false);
+
+    const labelRef = React.useRef<HTMLLabelElement>(null);
+    const labelWidth = labelRef.current && (isFocused || chips.length>0)  ? labelRef.current.clientWidth : 0;
+
+    const inputRef = React.useRef<HTMLInputElement>(null);
+
+    const InputComponent = inputComponent[variant];
+
+    React.useEffect(() => {
+        defaultValue ? setChips(defaultValue) : setChips([]);
+    }, [defaultValue]);
+
+    React.useEffect(() => {
+        setActualInputValue(inputValue);
+    }, [inputValue])
+
+    React.useEffect(() => {
+        if (onChange) {
+            onChange(chips);
+        }
+    }, [chips, onChange]);
+
+
+    const handleAddChip = (chip: string) => {
+        if (onBeforeAdd) {
+            setPreventChipCreation(true);
+            return false;
+        }
+        updateInput(''); // clear the input
+        
+        // handle data source config
+        if (chip.trim().length > 0) {
+            if (allowDuplicates || chips.indexOf(chip) === -1) {
+                if (onAdd) {
+                    onAdd(chip);
+                }
+                setChips([...chips, chip]);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    const handleDeleteChip = (chip: string, i: number) => {
+        const updatedChips = chips.slice();
+        const changed = updatedChips.splice(i, 1);
+        if (changed) {
+            setFocusedChip( focusedChip === i ? -1 : focusedChip - 1)
+            setChips(updatedChips);
+            if (onDelete) {
+                onDelete(chip, i);
+            }
+        }
+      }
+
+    const handleFocus = () => {
+        if (inputRef && inputRef.current) {
+            inputRef.current.focus();
+            setIsFocused(true);
+        }
+    }
+
+    const handleInputFocus = (event: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        setIsFocused(true);
+        if (onFocus) {
+            onFocus(event);
+        }
+    }
+
+    const handleInputBlur = (event: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        if (onBlur) {
+            onBlur(event)
+        }
+        setFocusedChip(-1);
+        setIsFocused(false);
+        const value = event.currentTarget.value
+        switch (blurBehaviour) {
+            case 'add':
+              if (delayBeforeAdd) {
+                const numChipsBefore = chips.length
+                setTimeout(() => {
+                  const numChipsAfter = chips.length;
+                  if (numChipsBefore === numChipsAfter) {
+                    handleAddChip(value)
+                  } else {
+                    updateInput('');
+                  }
+                }, 150)
+              } else {
+                handleAddChip(value)
+              }
+              break
+            case 'clear':
+              updateInput('');
+              break
+          }
+    }
+
+    const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        setIsKeyPressed(false);
+        setPreventChipCreation(false);
+        if (onKeyDown) {
+            onKeyDown(event);
+            if (event.isDefaultPrevented()) {
+                return;
+            }
+        }
+        if (newChipKeyCodes.indexOf(event.keyCode) >= 0 || newChipKeys.indexOf(event.key) >= 0) {
+            //console.log(event.target);
+            const resultAdd = handleAddChip(event.currentTarget.value);
+            if (resultAdd !== false) {
+                event.preventDefault();
+            }
+            return;
+        }
+        
+        switch (event.keyCode) {
+            case keyCodes.BACKSPACE:
+                //search the chip closest,
+                console.log('reached here', focusedChip, chips.length);
+                if ( event.currentTarget.value === '') {
+                    if (focusedChip !== -1 && chips.length>0 && (chips.length -1 === focusedChip) ) {
+                        const oldChip = chips[focusedChip];
+                        event.preventDefault();
+                        handleDeleteChip(oldChip, focusedChip);
+                        setActualInputValue(oldChip);
+                    } else {
+                        const chipToFocus = focusedChip === -1 && chips.length > 0 ? chips.length - 1 : -1;
+                        if (chipToFocus > -1) {
+                            event.preventDefault();
+                            setFocusedChip(chipToFocus);
+                        }
+                    }
+                }
+               
+              break;
+            case keyCodes.DELETE:
+                 if (focusedChip !== -1) {
+                     handleDeleteChip(chips[focusedChip], focusedChip);
+                     // the focus should be handled with the right position
+                     if (focusedChip <= chips.length - 1) {
+                        setFocusedChip(focusedChip);
+                      }
+                 }
+                 break;
+            case keyCodes.LEFT_ARROW:
+                if (event.currentTarget.value === '') {
+                    if (focusedChip === -1 && chips.length > 0) {
+                        setFocusedChip(chips.length - 1)
+                    } else if (focusedChip != null && focusedChip > 0) {
+                        setFocusedChip(focusedChip - 1)
+                    }
+                }
+                break;
+            case keyCodes.RIGHT_ARROW:
+                const newFocusedChip = (event.currentTarget.value === ''  && focusedChip !== null && focusedChip < chips.length -1) ? focusedChip + 1 : -1;
+                setFocusedChip(newFocusedChip);
+                break;
+            default:
+                setFocusedChip(-1);
+                break;
+            }
+        }
+
+    const handleKeyUp =  (event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        if (!preventChipCreation && (newChipKeyCodes.indexOf(event.keyCode) >= 0 || newChipKeys.indexOf(event.key) >= 0) && isKeyPressed) {
+            updateInput('')
+        } else {
+            updateInput(event.currentTarget.value)
+        }
+
+        if (onKeyUp) {
+            onKeyUp(event);
+        }
+    }
+
+
+    const handleKeyPress =  (event: React.KeyboardEvent<HTMLDivElement>) => {
+        setIsKeyPressed(true);
+        if (onKeyPress) {
+            onKeyPress(event);
+        }
+    }
+    
+    const handleUpdateInput = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        updateInput(event.target.value);
+        if (onUpdateInput) {
+            onUpdateInput(event);
+        }
+    }
+
+    const updateInput = (val: string) => {
+        setActualInputValue(val);
+    }
+
+
+    const renderChips = () => {
+        return (
+            <>
+            { 
+                chips.map((chip: string, i: number) => {
+                    return (
+                            <Chip
+                                key={i}
+                                className={clsx(classes.tagInput, focusedChip === i && classes.tagInputFocused, margin === 'dense' && classes.tagInputDense)}
+                                style={{
+                                    pointerEvents: disabled || readOnly ? 'none' : undefined,
+                                }}
+                                onClick={() => setFocusedChip(i)}
+                                onDelete={() => handleDeleteChip(chip, i)}
+                                label={chip}
+                            />
+                    )
+                })
+            }
+            </>
+        )
+    }
+    
+    return (
+        <FormControl
+            className={clsx(className, classes.root, {
+                [classes.marginDense]: margin === 'dense'
+              })}
+            fullWidth={fullWidth}
+            error={error}
+            required={chips.length > 0 ? undefined : required}
+            onClick={()=> handleFocus()}
+            disabled={disabled}
+            variant={variant}
+            margin={margin}
+        >
+        {
+            label && (
+            <InputLabel
+                classes={{ root: clsx(classes[variant], classes.label), shrink: classes.labelShrink }}
+                htmlFor={id}
+                shrink={isFocused || chips.length > 0 || actualInputValue !== ''}
+                focused={isFocused}
+                variant={variant}
+                ref={labelRef}
+                required={required}
+                {...InputLabelProps}
+            >
+                {label}
+            </InputLabel>)
+        }
+        <InputComponent
+            ref={inputRef}
+            labelWidth={labelWidth}
+            id={id}
+            name={name}
+            value={actualInputValue}
+            onChange={(event) => handleUpdateInput(event)}
+            onKeyDown={(event) => handleKeyDown(event)}
+            onKeyPress={(event) => handleKeyPress(event)}
+            onKeyUp={(event) => handleKeyUp(event)}
+            onFocus={(event) => handleInputFocus(event)}
+            onBlur={(event) => handleInputBlur(event)}
+            disabled={disabled}
+            fullWidth={fullWidth}
+            placeholder={placeholder}
+            readOnly={readOnly}
+            {...{...InputProps, startAdornment: renderChips()}}
+        />
+        {
+            helperText && (
+                <FormHelperText
+                    {...FormHelperTextProps}
+                >
+                    {helperText}
+                </FormHelperText>
+            )
+        }
+      </FormControl>
+
+    );
+};
+
+TagInput.defaultProps = {
+    allowDuplicates: false,
+    alwaysShowPlaceholder: false,
+    blurBehaviour: 'ignore' as TagInputBlurBehaviour,
+    className: '',
+    delayBeforeAdd: true,
+    defaultValue: [] as string[],
+    disabled: false,
+    error: false,
+    FormHelperTextProps: {},
+    fullWidth: true,
+    helperText: '',
+    id: `tag-input-${Math.random().toString(16).slice(-4)}`,
+    InputLabelProps: {},
+    InputProps: {},
+    inputValue: '',
+    label: '',
+    margin: 'normal' as MarginProps,
+    name: `tag-input-${Math.random().toString(16).slice(-4)}`,
+    newChipKeyCodes: [13],
+    newChipKeys: ['Enter'],
+    placeholder: '',
+    readOnly: false,
+    required: false,
+    variant: 'standard' as TagInputVariant,
+}
+
+export default withStyles(styles, {name: 'MuiTagInput'})(TagInput);
